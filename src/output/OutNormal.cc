@@ -52,8 +52,21 @@ bool OutNormal::infoWarningFilter( Verbosity verbosity_r, Type mask )
 void OutNormal::fixupProgressNL()
 {
   if ( !_newline )  // An active Progress bar is not NL terminated
-    cout << ansi::tty::clearLN; // Wipe it before writing out a normal line to the screen
-    // Alternative : cout << endl; to Keep the progress bar visible.
+  {
+    if ( _keepProgressLabel ) {
+      // If additional screen output interrupts a progress bar keep a copy
+      // of the label on screen, but without ticks/percent.
+      TermLine outstr( TermLine::SF_CRUSH | TermLine::SF_EXPAND, '-' );
+      outstr.lhs << *_keepProgressLabel << ' ';
+      outstr.rhs << "v";
+      _keepProgressLabel = outstr.get( termwidth() );
+      cout << ansi::tty::clearLN;
+      cout << outstr.get( termwidth() ) << endl;
+      _keepProgressLabel.reset();
+    }
+    else
+      cout << ansi::tty::clearLN; // Wipe it before writing out a normal line to the screen
+  }
 }
 
 void OutNormal::info( const std::string & msg_r, Verbosity verbosity_r, Type mask )
@@ -186,6 +199,7 @@ void OutNormal::progressStart( const std::string & id, const std::string & label
     displayProgress( label, 0 );
 
   _newline = false;
+  _keepProgressLabel = label;
 }
 
 void OutNormal::progress( const std::string & id, const std::string & label, int value )
@@ -229,6 +243,7 @@ void OutNormal::progressEnd( const std::string & id, const std::string & label, 
   std::string outline( outstr.get( termwidth() ) );
   cout << outline << endl << std::flush;
   _newline = true;
+  _keepProgressLabel.reset();
 
   if ( !error && _use_colors )
     cout << ColorContext::DEFAULT;

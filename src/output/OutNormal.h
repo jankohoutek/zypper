@@ -59,6 +59,7 @@ private:
   /* Newline flag. false if the last output did not end with new line character
    * (like in a self-overwriting progress line), false otherwise. */
   bool _newline;
+  std::optional<std::string> _keepProgressLabel;
   /* True if the last output line was longer than the terminal width */
   bool _oneup;
 };
