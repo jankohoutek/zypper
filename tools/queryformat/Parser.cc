@@ -5,8 +5,11 @@
                              |__/|_|  |_|
 \*---------------------------------------------------------------------------*/
 
+#include <cctype>
 #include <iostream>
+#include <algorithm>
 #include <vector>
+#include <string>
 
 //#define BOOST_SPIRIT_DEBUG
 #include <boost/spirit/include/qi.hpp>
@@ -31,6 +34,12 @@ namespace zypp
       namespace qi = boost::spirit::qi;
       namespace ascii = boost::spirit::ascii;
 
+      std::string lowerstr( std::string str_r )
+      {
+        std::transform( str_r.begin(), str_r.end(), str_r.begin(), [](unsigned char c){ return std::tolower(c); } );
+        return std::move(str_r);
+      }
+
       /// Symbol table to unescape special chars
       struct unesc_char_ : qi::symbols<char, const char *>
       {
@@ -49,6 +58,25 @@ namespace zypp
         }
       } unesc_char;
 
+#if WITH_TAGNAME_IDS
+      /// Sample symbol table to ci-parse attribute names to ids
+      struct attributes : qi::symbols<char, unsigned>
+      {
+        attributes()
+        {
+          unsigned val = 0;
+          add
+          ( "name",     ++val )
+          ( "version",  ++val )
+          ( "release",  ++val )
+          ( "edition",  ++val )
+          ( "arch",     ++val )
+          ( "size",     ++val )
+          ;
+        }
+      } attribute;
+#endif
+
       /// Queryformat grammar.
       template <typename Iterator>
       struct Grammar : qi::grammar<Iterator, Format()>
@@ -60,6 +88,7 @@ namespace zypp
           using qi::eps;
           using qi::_val;
           using qi::_1;
+          using ascii::no_case;
 
           identifyer	%= +qi::alpha;
           reserved	%= qi::lit('%') | '[' | ']' | '{' | '}';
@@ -69,7 +98,15 @@ namespace zypp
             string_value           [ px::bind(&String::value, _val) = _1 ];
 
           tag_fieldw	%= -qi::char_('-') >> *qi::char_('0') >> *qi::digit;
+#if USE_TAGNAME_IDS
+          tag_name      %= no_case[ attribute ];
+#else
+# if STORE_TAGNAME_LOWER
+          tag_name	= identifyer [ _val = px::bind(&lowerstr,_1) ];
+# else
           tag_name	%= identifyer;
+# endif // STORE_TAGNAME_LOWER
+#endif // USE_TAGNAME_IDS
           tag_format	%= identifyer;
           tok_tag =
             qi::lit('%')
@@ -126,7 +163,11 @@ namespace zypp
         qi::rule<Iterator, String()>        tok_string;
 
         qi::rule<Iterator, std::string()>   tag_fieldw;
+#if USE_TAGNAME_IDS
+        qi::rule<Iterator, unsigned()>      tag_name;
+#else
         qi::rule<Iterator, std::string()>   tag_name;
+#endif
         qi::rule<Iterator, std::string()>   tag_format;
         qi::rule<Iterator, Tag()>           tok_tag;
 
@@ -166,6 +207,8 @@ namespace zypp
 
     bool parse( std::string_view qf_r, Format & result_r )
     {
+      result_r.tokens.clear();
+
       using boost::spirit::qi::expectation_failure;
       using Iterator = std::string_view::iterator;
 

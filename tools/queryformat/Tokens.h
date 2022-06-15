@@ -14,6 +14,9 @@
 #include <vector>
 #include <string>
 
+#define USE_TAGNAME_IDS 0         // Just code sample how one could use symbol tables
+#define STORE_TAGNAME_LOWER 1     // Store parsed tagnames lowercased
+
 ///////////////////////////////////////////////////////////////////
 namespace std
 {
@@ -49,7 +52,7 @@ namespace zypp
       Array,
 
       /** %|TAG?{present}:{missing}|
-       * Conditional; tenary if tag exists or not
+       * Conditional; ternary if tag exists or not
        */
       Conditional,
     };
@@ -125,7 +128,11 @@ namespace zypp
       virtual std::ostream & dumpOn( std::ostream & str ) const override
       { return Token::dumpOn( str ) << "%" << (fieldw?*fieldw:"") << "{" << (noarray?"=":"") << name << (format?":"+*format:"") << "}"; }
 
+#if USE_TAGNAME_IDS
+      unsigned name = 0;
+#else
       std::string name;
+#endif
       std::optional<std::string> fieldw;
       std::optional<std::string> format;
       bool noarray = false;
